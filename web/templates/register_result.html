@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>注册成功</title>
+    <style>
+        .msg {
+            font-size: 20px;
+            margin-top: 50px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+<div class="msg">
+    注册成功！<span id="sec">5</span> 秒后自动跳转到首页……
+</div>
+
+<script>
+    let time = 5;
+    const sec = document.getElementById("sec");
+
+    const timer = setInterval(() => {
+        time--;
+        sec.innerText = time;
+        if (time === 0) {
+            clearInterval(timer);
+            window.location.href = "/index"; // 这里写跳转地址
+        }
+    }, 1000);
+</script>
+
+</body>
+</html>

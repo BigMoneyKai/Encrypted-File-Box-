@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UMS | Login</title>
+
+    <!-- Favicon -->
+    <link rel="shortcut icon" href="../static/images/loginlogo.png">
+
+    <!-- Google Icons -->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Sharp" rel="stylesheet">
+
+    <!-- Main CSS -->
+    <link rel="stylesheet" href="../static/style.css">
+
+    <style>
+        /* Login Page Custom Styling */
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background: var(--color-background);
+        }
+
+        .login-container {
+            width: 380px;
+            padding: 40px;
+            background: var(--color-white);
+            box-shadow: var(--box-shadow);
+            border-radius: 15px;
+            text-align: center;
+        }
+
+        .login-container img {
+            width: 80px;
+            margin-bottom: 10px;
+            display: block;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .login-container h1 {
+            margin-bottom: 20px;
+        }
+
+        .input-field {
+            text-align: left;
+            margin-top: 15px;
+        }
+
+        .input-field label {
+            font-size: 14px;
+            color: var(--color-dark);
+        }
+
+        .input-field input {
+            width: 100%;
+            padding: 12px;
+            margin-top: 5px;
+            border-radius: 10px;
+            border: 1px solid var(--color-light);
+            background: var(--color-light);
+            transition: all 0.3s ease;
+        }
+
+        .input-field input:focus {
+            border-color: var(--color-primary);
+        }
+
+        .btn-login {
+            margin-top: 25px;
+            width: 100%;
+            padding: 12px;
+            background: var(--color-primary);
+            border: none;
+            border-radius: 10px;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+            transition: 0.3s ease;
+        }
+
+        .btn-login:hover {
+            background: blueviolet;
+        }
+
+        .btn-signup {
+            margin-top: 10px;
+            width: 100%;
+            padding: 12px;
+            background: var(--color-primary);
+            border: none;
+            border-radius: 10px;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+            transition: 0.3s ease;
+        }
+
+        .btn-signup:hover {
+            background: blueviolet;
+        }
+
+        .extra-links {
+            margin-top: 20px;
+        }
+
+        .extra-links a {
+            font-size: 14px;
+            color: var(--color-primary);
+        }
+
+        .theme-toggler {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            gap: 10px;
+            background: var(--color-white);
+            padding: 8px;
+            border-radius: 10px;
+            box-shadow: var(--box-shadow);
+            cursor: pointer;
+        }
+
+        .theme-toggler span.active {
+            color: var(--color-primary);
+        }
+
+        .register {
+            margin: 25px 0;
+            font-size: 12px;
+            color: gray;
+            opacity: 0.6;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .register::before,
+        .register::after {
+            content: "";
+            flex: 1;
+            height: 1px;
+            background: lightgray;
+            opacity: 0.6;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Theme Button -->
+    <div class="theme-toggler">
+        <span class="material-icons-sharp active">light_mode</span>
+        <span class="material-icons-sharp">dark_mode</span>
+    </div>
+
+    <div class="login-container">
+        <img class="loginlogo" src="../static/images/loginlogo.png" alt="UMS Logo">
+        <h1>Login</h1>
+        <form id="loginForm">
+            <div class="input-field">
+                <label for="email">Email</label>
+                <input type="email" id="email" name="email" autocomplete="new-email" placeholder="Enter your Email" required>
+            </div>
+
+            <div class="input-field">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" autocomplete="new-password" placeholder="Enter your Password" required>
+            </div>
+
+            <button type="button" class="btn-login" onclick="login(); return false;">
+                Log in
+            </button>
+        </form>
+
+
+        <span>
+
+
+            <div class="register">
+                Didn't have an account
+            </div>
+
+            <button type="button" class="btn-signup" onclick="location.href='/register'">
+                Sign up
+            </button>
+
+
+        </span>
+
+
+        <div class="extra-links">
+            <a href="#">Forgot Password?</a>
+        </div>
+
+    </div>
+
+    <script src="../static/app.js"></script>
+
+</body>
+
+</html>

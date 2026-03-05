@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secure File Box</title>
+    <link rel="shortcut icon" href="../static/images/logo.png">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Sharp" rel="stylesheet">
+    <link rel="stylesheet" href="../static/style.css">
+</head>
+
+<body>
+    <header>
+        <div class="logo" title="Secure File Box">
+            <a href="/index" class="logo-link">
+                <img src="../static/images/logo.png" alt="Logo">
+                <h2>Secure <span class="danger">Box</span></h2>
+            </a>
+        </div>
+
+        <div class="navbar">
+            <a href="/index" class="active">
+                <span class="material-icons-sharp">lock</span>
+                <h3>Vault</h3>
+            </a>
+            <a href="/settings">
+                <span class="material-icons-sharp">settings</span>
+                <h3>Settings</h3>
+            </a>
+            <a href="/password">
+                <span class="material-icons-sharp">password</span>
+                <h3>Password</h3>
+            </a>
+            <button class="Btn" onclick="logout()">
+                <div class="sign">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+                        <path fill="white" d="M502.6 278.6l-160 160c-9.4 9.4-24.6 9.4-33.9 0s-9.4-24.6 0-33.9L401.4 288H192c-13.3 0-24-10.7-24-24s10.7-24 24-24h209.4L308.7 107.3c-9.4-9.4-9.4-24.6 0-33.9s24.6-9.4 33.9 0l160 160c9.5 9.4 9.5 24.6 0 35.2zM160 96H96c-17.7 0-32 14.3-32 32v256c0 17.7 14.3 32 32 32h64c17.7 0 32 14.3 32 32s-14.3 32-32 32H96c-53 0-96-43-96-96V128C0 75 43 32 96 32h64c17.7 0 32 14.3 32 32s-14.3 32-32 32z" />
+                    </svg>
+                </div>
+                <div class="text">Logout</div>
+            </button>
+        </div>
+
+        <div id="profile-btn">
+            <span class="material-icons-sharp">person</span>
+        </div>
+        <div class="theme-toggler">
+            <span class="material-icons-sharp active">light_mode</span>
+            <span class="material-icons-sharp">dark_mode</span>
+        </div>
+    </header>
+
+    <div class="container">
+        <aside>
+            <div class="profile">
+                <div class="top">
+                    <div class="profile-photo">
+                        <img class="avatar-photo" src="../static/images/peep.png" alt="">
+                    </div>
+                    <div class="info">
+                        <p>Secure <b>Session</b></p>
+                        <small class="text-muted">Vault Access</small>
+                    </div>
+                </div>
+
+                <div class="about">
+                    <h5>Status</h5>
+                    <p>Authenticated and encrypted file operations are enabled.</p>
+                    <h5>Email</h5>
+                    <p><span id="displayed_email">Loading...</span></p>
+                    <h5>Controls</h5>
+                    <p><a href="/settings">Account Settings</a></p>
+                </div>
+            </div>
+        </aside>
+
+        <main>
+            <h1>Secure File Vault</h1>
+            <div class="subjects">
+                <div class="eg">
+                    <span class="material-icons-sharp">verified_user</span>
+                    <h3>Session Security</h3>
+                    <h2>Active</h2>
+                    <small class="text-muted">Logged-in token verified</small>
+                </div>
+                <div class="cs">
+                    <span class="material-icons-sharp">shield</span>
+                    <h3>Integrity Check</h3>
+                    <h2>Enabled</h2>
+                    <small class="text-muted">Protected file transport</small>
+                </div>
+                <div class="net">
+                    <span class="material-icons-sharp">lock</span>
+                    <h3>Vault Mode</h3>
+                    <h2>On</h2>
+                    <small class="text-muted">Only secure actions allowed</small>
+                </div>
+            </div>
+
+            <section class="vault-card upload-card">
+                <div class="section-head">
+                    <h2>Upload to Vault</h2>
+                </div>
+                <div class="upload-grid">
+                    <div class="field-wrap">
+                        <label for="fileInput">Choose File</label>
+                        <input type="file" id="fileInput" class="file-input">
+                    </div>
+                    <div class="field-wrap">
+                        <label for="fileDesc">Description</label>
+                        <input type="text" id="fileDesc" placeholder="Optional description">
+                    </div>
+                    <div class="upload-actions">
+                        <button id="uploadBtn" class="upload-btn">Upload</button>
+                    </div>
+                </div>
+                <div id="uploadResult" class="upload-status text-muted"></div>
+            </section>
+
+            <section class="vault-card files-card">
+                <div class="section-head">
+                    <h2>Protected Files</h2>
+                    <button id="refreshFilesBtn" class="refresh-btn">Refresh</button>
+                </div>
+                <div class="table-wrap">
+                    <table class="files-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Size</th>
+                                <th>Uploaded</th>
+                                <th>Description</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="filesBody">
+                            <tr>
+                                <td colspan="5" class="text-muted">Sign in to view protected files.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+
+        <div class="right">
+            <div class="announcements">
+                <h2>Security Notes</h2>
+                <div class="updates">
+                    <div class="message">
+                        <p><b>Tip:</b> Use clear descriptions to identify sensitive uploads quickly.</p>
+                    </div>
+                    <div class="message">
+                        <p><b>Tip:</b> Downloaded files are decrypted only for your authenticated session.</p>
+                    </div>
+                    <div class="message">
+                        <p><b>Notice:</b> Delete action permanently removes stored encrypted file data.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="../static/app.js"></script>
+</body>
+
+</html>
