@@ -56,22 +56,17 @@ func (s *UserService) CreateUser(username string, email string, password string)
 	return user, nil
 }
 
-func (s *UserService) DeleteUser(username string, inputPassword string) error {
-	var count int64
-	s.db.Model(&model.User{}).Where("Username = ?", username).Count(&count)
-
-	if count == 0 {
+func (s *UserService) DeleteUser(email string, inputPassword string) error {
+	var user model.User
+	if err := s.db.Where("email = ?", email).First(&user).Error; err != nil {
 		return errors.New("user does not exist")
 	}
 
-	var user *model.User
-	s.db.Model(&model.User{}).Where("Username = ?", username).Find(&user)
-	hashedPassword, _ := pkg.HashPassword(inputPassword)
-	if user.Password != hashedPassword {
+	if err := pkg.CheckPassword(user.Password, inputPassword); err != nil {
 		return errors.New("incorrect password")
 	}
 
-	if err := s.db.Delete(user); err != nil {
+	if err := s.db.Delete(&user).Error; err != nil {
 		return errors.New("failed to delete")
 	}
 
@@ -104,12 +99,14 @@ func (s *UserService) ChangeUsername(email string, newUsername string) error {
 	var count int64
 	s.db.Model(&model.User{}).Where("Username = ?", newUsername).Count(&count)
 
-	if count == 0 {
-		return errors.New("user does not exist")
+	if count > 0 {
+		return errors.New("username already exists")
 	}
 
-	var user *model.User
-	s.db.Model(&model.User{}).Where("email = ?", email).Find(&user)
+	var user model.User
+	if err := s.db.Where("email = ?", email).First(&user).Error; err != nil {
+		return errors.New("user does not exist")
+	}
 
 	user.Username = newUsername
 	user.UpdatedAt = time.Now()
