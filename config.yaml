@@ -13,6 +13,11 @@ jwt:
     issuer: secure_file_box
     expiry_minutes: 60
     secret: LL6FFyTyLLh9My7v9ySCHXxn6LL5z4tBiItAXfwdm6M
+malware_scan:
+    enabled: true
+    command: ""
+    timeout_seconds: 30
+    allow_on_failure: false
 server:
     app_name: secure_file_box
     debug: true

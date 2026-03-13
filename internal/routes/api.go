@@ -51,10 +51,18 @@ func RegisterAPIRoutes(
 
 		// 文件
 		authRequired.POST("/files/upload", fileH.UploadFile)
+		authRequired.POST("/files/batch", fileH.UploadFileBatch)
 		authRequired.GET("/files", fileH.ListFiles)
 		authRequired.GET("/files/download/:id", fileH.DownloadFile)
+		authRequired.GET("/files/preview/:id", fileH.PreviewFile)
 		authRequired.PUT("/files/:id", fileH.UpdateFile)
 		authRequired.DELETE("/files/:id", fileH.DeleteFile)
+		authRequired.DELETE("/files/batch", fileH.DeleteFileBatch)
+		authRequired.POST("/files/resumable/init", fileH.InitResumable)
+		authRequired.GET("/files/resumable/:upload_id", fileH.GetResumableStatus)
+		authRequired.POST("/files/resumable/:upload_id/chunk", fileH.UploadChunk)
+		authRequired.POST("/files/resumable/:upload_id/complete", fileH.CompleteResumable)
+		authRequired.DELETE("/files/resumable/:upload_id", fileH.AbortResumable)
 		authRequired.POST("/auth/logout", authH.Logout)
 	}
 
@@ -65,10 +73,18 @@ func RegisterAPIRoutes(
 		legacyAuth := r.Group("")
 		legacyAuth.Use(middleware.JWTAuthMiddleware(jwtCfg))
 		legacyAuth.POST("/files/upload", fileH.UploadFile)
+		legacyAuth.POST("/files/batch", fileH.UploadFileBatch)
 		legacyAuth.GET("/files", fileH.ListFiles)
 		legacyAuth.GET("/files/download/:id", fileH.DownloadFile)
+		legacyAuth.GET("/files/preview/:id", fileH.PreviewFile)
 		legacyAuth.PUT("/files/:id", fileH.UpdateFile)
 		legacyAuth.DELETE("/files/:id", fileH.DeleteFile)
+		legacyAuth.DELETE("/files/batch", fileH.DeleteFileBatch)
+		legacyAuth.POST("/files/resumable/init", fileH.InitResumable)
+		legacyAuth.GET("/files/resumable/:upload_id", fileH.GetResumableStatus)
+		legacyAuth.POST("/files/resumable/:upload_id/chunk", fileH.UploadChunk)
+		legacyAuth.POST("/files/resumable/:upload_id/complete", fileH.CompleteResumable)
+		legacyAuth.DELETE("/files/resumable/:upload_id", fileH.AbortResumable)
 	}
 }
 

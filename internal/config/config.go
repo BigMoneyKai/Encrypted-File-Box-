@@ -52,11 +52,19 @@ type FileCryptoConfig struct {
 	Key string `mapstructure:"key"`
 }
 
+type MalwareScanConfig struct {
+	Enabled        bool   `mapstructure:"enabled"`
+	Command        string `mapstructure:"command"`
+	TimeoutSeconds int    `mapstructure:"timeout_seconds"`
+	AllowOnFailure bool   `mapstructure:"allow_on_failure"`
+}
+
 type Config struct {
-	Server     ServerConfig     `mapstructure:"server"`
-	Database   DatabaseConfig   `mapstructure:"database"`
-	JWT        JWTConfig        `mapstructure:"jwt"`
-	FileCrypto FileCryptoConfig `mapstructure:"file_crypto"`
+	Server      ServerConfig      `mapstructure:"server"`
+	Database    DatabaseConfig    `mapstructure:"database"`
+	JWT         JWTConfig         `mapstructure:"jwt"`
+	FileCrypto  FileCryptoConfig  `mapstructure:"file_crypto"`
+	MalwareScan MalwareScanConfig `mapstructure:"malware_scan"`
 }
 
 func LoadConfig() (*Config, error) {
@@ -140,6 +148,10 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("jwt.expiry_minutes", 60)
 
 	v.SetDefault("file_crypto.key", "PLEASE_CHANGE_ME_32_CHARS_MINIMUM")
+	v.SetDefault("malware_scan.enabled", true)
+	v.SetDefault("malware_scan.command", "")
+	v.SetDefault("malware_scan.timeout_seconds", 30)
+	v.SetDefault("malware_scan.allow_on_failure", false)
 }
 
 func validateConfig(cfg *Config) error {

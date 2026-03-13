@@ -105,8 +105,8 @@
                 </div>
                 <div class="upload-grid">
                     <div class="field-wrap">
-                        <label for="fileInput">Choose File</label>
-                        <input type="file" id="fileInput" class="file-input">
+                        <label for="fileInput">Choose Files</label>
+                        <input type="file" id="fileInput" class="file-input" multiple accept=".jpg,.jpeg,.png,.gif,.webp,.txt,.md,.json,.log,.csv,.pdf">
                     </div>
                     <div class="field-wrap">
                         <label for="fileDesc">Description</label>
@@ -116,31 +116,27 @@
                         <button id="uploadBtn" class="upload-btn">Upload</button>
                     </div>
                 </div>
+                <div class="upload-progress">
+                    <div class="progress-title">Upload Progress:</div>
+                    <div class="progress-track">
+                        <div id="globalProgressBar" class="progress-bar"></div>
+                    </div>
+                    <div id="globalProgressText" class="progress-text">[░░░░░░░░░░░░░] 0% (0 / 0 files)</div>
+                </div>
+                <div id="uploadQueue" class="upload-queue"></div>
                 <div id="uploadResult" class="upload-status text-muted"></div>
             </section>
 
             <section class="vault-card files-card">
                 <div class="section-head">
                     <h2>Protected Files</h2>
-                    <button id="refreshFilesBtn" class="refresh-btn">Refresh</button>
+                    <div class="files-actions">
+                        <button id="refreshFilesBtn" class="refresh-btn">Refresh</button>
+                        <button id="deleteSelectedBtn" class="delete-btn">Delete Selected</button>
+                    </div>
                 </div>
-                <div class="table-wrap">
-                    <table class="files-table">
-                        <thead>
-                            <tr>
-                                <th>Name</th>
-                                <th>Size</th>
-                                <th>Uploaded</th>
-                                <th>Description</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="filesBody">
-                            <tr>
-                                <td colspan="5" class="text-muted">Sign in to view protected files.</td>
-                            </tr>
-                        </tbody>
-                    </table>
+                <div id="filesGrid" class="files-grid">
+                    <div class="text-muted">Sign in to view protected files.</div>
                 </div>
             </section>
         </main>

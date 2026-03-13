@@ -2,6 +2,8 @@ package service
 
 import (
 	"bufio"
+	"bytes"
+	"context"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/hmac"
@@ -12,9 +14,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Kaikai20040827/graduation/internal/model"
@@ -28,6 +32,8 @@ type FileService struct {
 	metaKey []byte
 	fileGCM cipher.AEAD
 	metaGCM cipher.AEAD
+	scanner MalwareScanner
+	scanOpt ScanOptions
 }
 
 const (
@@ -36,9 +42,10 @@ const (
 	fileNonceSize   = 12
 	metaNonceSize   = 12
 	chunkSize       = 32 * 1024
+	tmpUploadDir    = "_tmp_uploads"
 )
 
-func NewFileService(db *gorm.DB, storagePath string, base64Key string) *FileService {
+func NewFileService(db *gorm.DB, storagePath string, base64Key string, scanOpt ScanOptions) *FileService {
 	_ = os.MkdirAll(storagePath, 0755)
 	fmt.Println("✓ Creating a new file service done")
 
@@ -57,15 +64,52 @@ func NewFileService(db *gorm.DB, storagePath string, base64Key string) *FileServ
 		}
 	}
 
-	return &FileService{db: db, dirpath: storagePath, fileKey: fileKey, metaKey: metaKey, fileGCM: fileGCM, metaGCM: metaGCM}
+	var scanner MalwareScanner
+	if scanOpt.Enabled {
+		if s, err := NewClamAVScanner(scanOpt.Command, scanOpt.TimeoutSeconds); err == nil {
+			scanner = s
+		} else if errors.Is(err, ErrScannerUnavailable) && strings.TrimSpace(scanOpt.Command) == "" {
+			// No scanner configured or found; disable scanning so uploads don't hard-fail.
+			fmt.Println("! Malware scan disabled: no scanner available. Configure malware_scan.command or install clamscan.")
+			scanOpt.Enabled = false
+		}
+	}
+
+	return &FileService{
+		db:      db,
+		dirpath: storagePath,
+		fileKey: fileKey,
+		metaKey: metaKey,
+		fileGCM: fileGCM,
+		metaGCM: metaGCM,
+		scanner: scanner,
+		scanOpt: scanOpt,
+	}
 }
 
-func (f *FileService) UploadFile(fileReader io.Reader, filename string, uploaderID uint, description string) (*model.File, error) {
+func (f *FileService) ensureUserDir(uploaderID uint) (string, error) {
+	var dir string
+	if uploaderID == 0 {
+		dir = filepath.Join(f.dirpath, "public")
+	} else {
+		dir = filepath.Join(f.dirpath, "users", strconv.FormatUint(uint64(uploaderID), 10))
+	}
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return "", err
+	}
+	return dir, nil
+}
+
+func (f *FileService) UploadFile(fileReader io.Reader, filename string, uploaderID uint, description string, mime string) (*model.File, error) {
 	storedName, err := randomStorageName()
 	if err != nil {
 		return nil, err
 	}
-	dst := filepath.Join(f.dirpath, storedName)
+	userDir, err := f.ensureUserDir(uploaderID)
+	if err != nil {
+		return nil, err
+	}
+	dst := filepath.Join(userDir, storedName)
 	size, err := f.encryptToFile(fileReader, dst)
 	if err != nil {
 		return nil, err
@@ -77,6 +121,7 @@ func (f *FileService) UploadFile(fileReader io.Reader, filename string, uploader
 		Size:        size,
 		Description: description,
 		UploaderID:  fmt.Sprintf("%d", uploaderID),
+		Mime:        mime,
 		CreatedAt:   time.Now(),
 	}
 	if err := f.encryptFileMetadata(file); err != nil {
@@ -96,7 +141,11 @@ func (f *FileService) SaveUserAvatar(fileReader io.Reader, filename string, user
 	if err != nil {
 		return "", 0, err
 	}
-	dst := filepath.Join(f.dirpath, "avatar_"+storedName)
+	userDir, err := f.ensureUserDir(userID)
+	if err != nil {
+		return "", 0, err
+	}
+	dst := filepath.Join(userDir, "avatar_"+storedName)
 	size, err := f.encryptToFile(fileReader, dst)
 	if err != nil {
 		return "", 0, err
@@ -116,7 +165,7 @@ func (f *FileService) RemoveStoredFile(path string) error {
 	return nil
 }
 
-func (f *FileService) UpdateFile(id uint, fileReader io.Reader, filename *string, description *string) (*model.File, error) {
+func (f *FileService) UpdateFile(id uint, fileReader io.Reader, filename *string, description *string, mime *string) (*model.File, error) {
 	file, err := f.GetFileByID(id)
 	if err != nil {
 		return nil, err
@@ -137,6 +186,9 @@ func (f *FileService) UpdateFile(id uint, fileReader io.Reader, filename *string
 		if filename != nil && *filename != "" {
 			file.Filename = *filename
 		}
+		if mime != nil && *mime != "" {
+			file.Mime = *mime
+		}
 	}
 
 	if description != nil {
@@ -152,6 +204,7 @@ func (f *FileService) UpdateFile(id uint, fileReader io.Reader, filename *string
 		"enc_size":         file.EncSize,
 		"enc_description":  file.EncDescription,
 		"enc_uploader_id":  file.EncUploaderID,
+		"enc_mime":         file.EncMime,
 		"filename":         "",
 		"storage_path":     "",
 		"size":             0,
@@ -279,6 +332,118 @@ func (f *FileService) encryptToFile(src io.Reader, dstPath string) (int64, error
 	return total, nil
 }
 
+func (f *FileService) UploadValidatedMultipart(ctx context.Context, fileHeader *multipart.FileHeader, uploaderID uint, description string) (*model.File, error) {
+	tmpPath, filename, mimeType, err := f.PrepareValidatedTemp(ctx, fileHeader)
+	if err != nil {
+		return nil, err
+	}
+	defer os.Remove(tmpPath)
+
+	return f.UploadFileFromPath(tmpPath, filename, uploaderID, description, mimeType)
+}
+
+func (f *FileService) PrepareValidatedTemp(ctx context.Context, fileHeader *multipart.FileHeader) (string, string, string, error) {
+	filename := filepath.Base(fileHeader.Filename)
+	if _, err := ValidateExtension(filename); err != nil {
+		return "", "", "", err
+	}
+	src, err := fileHeader.Open()
+	if err != nil {
+		return "", "", "", err
+	}
+	defer src.Close()
+
+	tmpPath, sample, err := f.saveToTemp(src)
+	if err != nil {
+		return "", "", "", err
+	}
+
+	mimeType, err := ValidateContent(filename, sample)
+	if err != nil {
+		_ = os.Remove(tmpPath)
+		return "", "", "", err
+	}
+	if err := f.scanFile(ctx, tmpPath); err != nil {
+		_ = os.Remove(tmpPath)
+		return "", "", "", err
+	}
+	return tmpPath, filename, mimeType, nil
+}
+
+func (f *FileService) UploadFileFromPath(srcPath, filename string, uploaderID uint, description string, mimeType string) (*model.File, error) {
+	in, err := os.Open(srcPath)
+	if err != nil {
+		return nil, err
+	}
+	defer in.Close()
+	return f.UploadFile(in, filename, uploaderID, description, mimeType)
+}
+
+func (f *FileService) UpdateFileFromPath(id uint, srcPath string, filename *string, description *string, mime *string) (*model.File, error) {
+	in, err := os.Open(srcPath)
+	if err != nil {
+		return nil, err
+	}
+	defer in.Close()
+	return f.UpdateFile(id, in, filename, description, mime)
+}
+
+func (f *FileService) saveToTemp(src io.Reader) (string, []byte, error) {
+	dir := filepath.Join(f.dirpath, tmpUploadDir)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return "", nil, err
+	}
+	tmpName, err := randomStorageName()
+	if err != nil {
+		return "", nil, err
+	}
+	tmpPath := filepath.Join(dir, "raw_"+tmpName)
+
+	out, err := os.Create(tmpPath)
+	if err != nil {
+		return "", nil, err
+	}
+	defer out.Close()
+
+	sample := make([]byte, 512)
+	n, readErr := io.ReadFull(src, sample)
+	if readErr != nil && readErr != io.EOF && readErr != io.ErrUnexpectedEOF {
+		return "", nil, readErr
+	}
+	sample = sample[:n]
+	if _, err := out.Write(sample); err != nil {
+		return "", nil, err
+	}
+	if _, err := io.Copy(out, src); err != nil {
+		return "", nil, err
+	}
+	return tmpPath, sample, nil
+}
+
+func (f *FileService) scanFile(ctx context.Context, path string) error {
+	if !f.scanOpt.Enabled {
+		return nil
+	}
+	if f.scanner == nil {
+		if f.scanOpt.AllowOnFailure {
+			return nil
+		}
+		return ErrScannerUnavailable
+	}
+	clean, signature, err := f.scanner.ScanPath(ctx, path)
+	if err != nil {
+		if f.scanOpt.AllowOnFailure {
+			return nil
+		}
+		return err
+	}
+	if !clean {
+		fmt.Printf("malware detected in %s: %s\n", path, signature)
+		return fmt.Errorf("malware detected: %s", signature)
+	}
+	return nil
+}
+
 func (f *FileService) DecryptToWriter(w io.Writer, srcPath string) error {
 	if f.fileGCM == nil {
 		return errors.New("file crypto key not configured")
@@ -334,6 +499,87 @@ func (f *FileService) DecryptToWriter(w io.Writer, srcPath string) error {
 	return nil
 }
 
+// DecryptToWriterLimit streams decrypted data to w up to maxBytes (<=0 means no limit).
+func (f *FileService) DecryptToWriterLimit(w io.Writer, srcPath string, maxBytes int64) (int64, error) {
+	if f.fileGCM == nil {
+		return 0, errors.New("file crypto key not configured")
+	}
+
+	in, err := os.Open(srcPath)
+	if err != nil {
+		return 0, err
+	}
+	defer in.Close()
+
+	header := make([]byte, len(fileMagicV2)+fileNoncePrefix)
+	if _, err := io.ReadFull(in, header); err != nil {
+		return 0, err
+	}
+	if string(header[:len(fileMagicV2)]) != fileMagicV2 {
+		return 0, errors.New("invalid file magic")
+	}
+	prefix := header[len(fileMagicV2):]
+
+	reader := bufio.NewReaderSize(in, chunkSize*2)
+	var counter uint32
+	var written int64
+	for {
+		var n uint32
+		err := binary.Read(reader, binary.BigEndian, &n)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return written, err
+		}
+		if n == 0 {
+			return written, errors.New("invalid encrypted chunk length")
+		}
+
+		sealed := make([]byte, n)
+		if _, err := io.ReadFull(reader, sealed); err != nil {
+			return written, err
+		}
+
+		nonce := makeChunkNonce(prefix, counter)
+		aad := makeChunkAAD(counter)
+		plain, err := f.fileGCM.Open(nil, nonce, sealed, aad)
+		if err != nil {
+			return written, err
+		}
+
+		if maxBytes > 0 && written+int64(len(plain)) > maxBytes {
+			remain := maxBytes - written
+			if remain > 0 {
+				nw, werr := w.Write(plain[:remain])
+				written += int64(nw)
+				if werr != nil {
+					return written, werr
+				}
+			}
+			return written, nil
+		}
+
+		nw, werr := w.Write(plain)
+		written += int64(nw)
+		if werr != nil {
+			return written, werr
+		}
+		counter++
+	}
+	return written, nil
+}
+
+// DecryptToBytesLimit returns decrypted bytes up to maxBytes (<=0 means no limit).
+func (f *FileService) DecryptToBytesLimit(srcPath string, maxBytes int64) ([]byte, error) {
+	var buf bytes.Buffer
+	_, err := f.DecryptToWriterLimit(&buf, srcPath, maxBytes)
+	if err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
 func makeChunkNonce(prefix []byte, counter uint32) []byte {
 	nonce := make([]byte, fileNonceSize)
 	copy(nonce, prefix)
@@ -376,6 +622,9 @@ func (f *FileService) encryptFileMetadata(file *model.File) error {
 	if file.EncUploaderID, err = f.encryptString(file.UploaderID); err != nil {
 		return err
 	}
+	if file.EncMime, err = f.encryptString(file.Mime); err != nil {
+		return err
+	}
 	file.LegacyFilename = ""
 	file.LegacyPath = ""
 	file.LegacySize = 0
@@ -388,12 +637,13 @@ func (f *FileService) decryptFileMetadata(file *model.File) error {
 	if f.metaGCM == nil {
 		return errors.New("file crypto key not configured")
 	}
-	if file.EncFilename == "" && file.EncStoragePath == "" && file.EncSize == "" && file.EncDescription == "" && file.EncUploaderID == "" {
+	if file.EncFilename == "" && file.EncStoragePath == "" && file.EncSize == "" && file.EncDescription == "" && file.EncUploaderID == "" && file.EncMime == "" {
 		file.Filename = file.LegacyFilename
 		file.StoragePath = file.LegacyPath
 		file.Size = file.LegacySize
 		file.Description = file.LegacyDesc
 		file.UploaderID = file.LegacyUploader
+		file.Mime = ""
 		return nil
 	}
 	var err error
@@ -421,6 +671,9 @@ func (f *FileService) decryptFileMetadata(file *model.File) error {
 		return err
 	}
 	if file.UploaderID, err = f.decryptString(file.EncUploaderID); err != nil {
+		return err
+	}
+	if file.Mime, err = f.decryptString(file.EncMime); err != nil {
 		return err
 	}
 	return nil

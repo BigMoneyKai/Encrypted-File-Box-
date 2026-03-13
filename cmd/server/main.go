@@ -60,7 +60,13 @@ func main() {
 	_, currentFile, _, _ := runtime.Caller(0)
 	projectRoot := filepath.Dir(filepath.Dir(filepath.Dir(currentFile)))
 	storagePath := filepath.Join(projectRoot, "storage")
-	fileSrv := service.NewFileService(db, storagePath, cfg.FileCrypto.Key)
+	scanOpt := service.ScanOptions{
+		Enabled:        cfg.MalwareScan.Enabled,
+		Command:        cfg.MalwareScan.Command,
+		TimeoutSeconds: cfg.MalwareScan.TimeoutSeconds,
+		AllowOnFailure: cfg.MalwareScan.AllowOnFailure,
+	}
+	fileSrv := service.NewFileService(db, storagePath, cfg.FileCrypto.Key, scanOpt)
 	// fmt.Printf("(%d/2) done", )
 	// fmt.Println("")
 	fmt.Println("-----Initialized UserService and FileService successfully-----")

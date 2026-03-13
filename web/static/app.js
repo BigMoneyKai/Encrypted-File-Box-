@@ -167,7 +167,6 @@ function clearAuthState() {
 }
 
 function redirectToLogin() {
-    window.location.href = "/";
     window.location.href = "/login";
 }
 
@@ -313,6 +312,13 @@ function escapeHTML(value) {
         .replaceAll("'", '&#39;');
 }
 
+function getFileExt(name) {
+    const base = String(name || '').toLowerCase();
+    const idx = base.lastIndexOf('.');
+    if (idx <= 0 || idx === base.length - 1) return '';
+    return base.slice(idx + 1);
+}
+
 function getAuthHeaders(extra = {}) {
     const token = getAuthToken();
     const headers = { ...extra };
@@ -373,39 +379,46 @@ function changePassword() {
 }
 
 function renderFiles(items) {
-    const filesBody = document.getElementById('filesBody');
-    if (!filesBody) return;
+    const filesGrid = document.getElementById('filesGrid');
+    if (!filesGrid) return;
 
     if (!items || items.length === 0) {
-        filesBody.innerHTML = '<tr><td colspan="5" class="text-muted">No files in vault.</td></tr>';
+        filesGrid.innerHTML = '<div class="text-muted">No files in vault.</div>';
         return;
     }
 
-    filesBody.innerHTML = items.map(file => {
+    filesGrid.innerHTML = items.map(file => {
         const created = file.created_at ? new Date(file.created_at).toLocaleString() : '-';
+        const safeName = escapeHTML(file.filename || '-');
+        const safeDesc = escapeHTML(file.description || '-');
+        const ext = getFileExt(file.filename || '');
         return `
-        <tr>
-            <td>${escapeHTML(file.filename || '-')}</td>
-            <td>${formatSize(Number(file.size || 0))}</td>
-            <td>${escapeHTML(created)}</td>
-            <td>${escapeHTML(file.description || '-')}</td>
-            <td>
-                <button class="file-action" data-action="download" data-id="${file.id}" data-name="${escapeHTML(file.filename || 'file')}">Download</button>
+        <div class="file-card" data-id="${file.id}" data-ext="${escapeHTML(ext)}">
+            <input type="checkbox" class="select-checkbox" data-id="${file.id}">
+            <div class="file-title">${safeName}</div>
+            <div class="file-meta">${formatSize(Number(file.size || 0))} • ${escapeHTML(created)}</div>
+            <div class="file-meta">${safeDesc}</div>
+            <div class="preview" data-preview="${file.id}">
+                <div class="text-muted" style="padding:0.6rem;">Preview not loaded</div>
+            </div>
+            <div class="file-actions">
+                <button class="file-action" data-action="preview" data-id="${file.id}">Preview</button>
+                <button class="file-action" data-action="download" data-id="${file.id}" data-name="${safeName}">Download</button>
                 <button class="file-action update" data-action="update" data-id="${file.id}">Update</button>
                 <button class="file-action delete" data-action="delete" data-id="${file.id}">Delete</button>
-            </td>
-        </tr>`;
+            </div>
+        </div>`;
     }).join('');
 }
 
 function loadSecureFiles() {
-    const filesBody = document.getElementById('filesBody');
-    if (!filesBody) return Promise.resolve();
+    const filesGrid = document.getElementById('filesGrid');
+    if (!filesGrid) return Promise.resolve();
 
     const token = getAuthToken();
     const refreshBtn = document.getElementById('refreshFilesBtn');
     if (!token) {
-        filesBody.innerHTML = '<tr><td colspan="5" class="text-muted">Sign in to view protected files.</td></tr>';
+        filesGrid.innerHTML = '<div class="text-muted">Sign in to view protected files.</div>';
         if (refreshBtn) {
             refreshBtn.disabled = true;
             refreshBtn.title = 'Sign in to refresh protected files.';
@@ -417,7 +430,7 @@ function loadSecureFiles() {
         refreshBtn.title = '';
     }
 
-    filesBody.innerHTML = '<tr><td colspan="5" class="text-muted">Loading files...</td></tr>';
+    filesGrid.innerHTML = '<div class="text-muted">Loading files...</div>';
     return fetch(API_BASE + '/files?page=1&size=50', {
         method: 'GET',
         headers: getAuthHeaders({ Accept: 'application/json' })
@@ -442,7 +455,7 @@ function loadSecureFiles() {
             renderFiles(data.data.items || []);
         })
         .catch(err => {
-            filesBody.innerHTML = `<tr><td colspan="5" class="text-muted">Failed to load: ${escapeHTML(err.message || err)}</td></tr>`;
+            filesGrid.innerHTML = `<div class="text-muted">Failed to load: ${escapeHTML(err.message || err)}</div>`;
         });
 }
 
@@ -474,73 +487,270 @@ document.addEventListener('DOMContentLoaded', () => {
     const fileDesc = document.getElementById('fileDesc');
     const uploadResult = document.getElementById('uploadResult');
     const refreshFilesBtn = document.getElementById('refreshFilesBtn');
-    const filesBody = document.getElementById('filesBody');
+    const filesGrid = document.getElementById('filesGrid');
+    const uploadQueue = document.getElementById('uploadQueue');
+    const globalProgressBar = document.getElementById('globalProgressBar');
+    const globalProgressText = document.getElementById('globalProgressText');
+    const deleteSelectedBtn = document.getElementById('deleteSelectedBtn');
 
-    if (!uploadBtn || !fileInput || !uploadResult || !filesBody) return;
+    if (!uploadBtn || !fileInput || !uploadResult || !filesGrid) return;
 
     loadSecureFiles();
 
-    const runUpload = (endpoint, requireAuth, buttonEl) => {
-        uploadResult.innerText = '';
-        if (!fileInput.files || fileInput.files.length === 0) {
-            uploadResult.innerText = 'Please choose a file first.';
-            return;
-        }
-        if (requireAuth) {
+    const RESUMABLE_THRESHOLD = 10 * 1024 * 1024;
+    const CHUNK_SIZE = 2 * 1024 * 1024;
+    let queueItems = [];
+    const preparedSessions = new Map();
+    const makeFileKey = (file) => `${file.name}::${file.size}::${file.lastModified}`;
+
+    const setGlobalProgress = (completed, total) => {
+        if (!globalProgressBar || !globalProgressText) return;
+        const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
+        globalProgressBar.style.width = `${percent}%`;
+        globalProgressText.innerText = `[${renderBlocks(percent)}] ${percent}% (${completed} / ${total} files)`;
+    };
+
+    const setGlobalPreparing = (total) => {
+        if (!globalProgressBar || !globalProgressText) return;
+        const percent = total === 1 ? 100 : (total > 0 ? 5 : 0);
+        globalProgressBar.style.width = `${percent}%`;
+        globalProgressText.innerText = `[${renderBlocks(percent)}] ${percent}% (0 / ${total} files) Ready`;
+    };
+
+    const renderBlocks = (percent) => {
+        const total = 12;
+        const filled = Math.round((percent / 100) * total);
+        return `${'█'.repeat(filled)}${'░'.repeat(total - filled)}`;
+    };
+
+    const createUploadItem = (file) => {
+        if (!uploadQueue) return null;
+        const item = document.createElement('div');
+        item.className = 'upload-item';
+        item.innerHTML = `
+            <div class="meta">
+                <div>${escapeHTML(file.name)}</div>
+                <div>${formatSize(file.size)}</div>
+            </div>
+            <div class="progress-track"><div class="progress-bar"></div></div>
+            <div class="status">Waiting...</div>
+        `;
+        uploadQueue.appendChild(item);
+        return {
+            el: item,
+            bar: item.querySelector('.progress-bar'),
+            status: item.querySelector('.status')
+        };
+    };
+
+    const setItemProgress = (ui, percent, statusText) => {
+        if (!ui) return;
+        if (ui.bar) ui.bar.style.width = `${percent}%`;
+        if (ui.status && statusText) ui.status.innerText = statusText;
+    };
+
+    const setItemPrepared = (ui) => {
+        setItemProgress(ui, 5, 'Ready to upload');
+    };
+
+    const uploadSingleNormal = (file, description, ui) => {
+        return new Promise((resolve, reject) => {
             const token = getAuthToken();
             if (!token) {
-                uploadResult.innerText = 'Session expired. Please log in again.';
-                redirectToLogin();
+                reject(new Error('Session expired. Please log in again.'));
                 return;
             }
-        }
-
-        const fd = new FormData();
-        fd.append('file', fileInput.files[0]);
-        fd.append('description', fileDesc ? fileDesc.value.trim() : '');
-
-        if (buttonEl) {
-            buttonEl.disabled = true;
-            buttonEl.innerText = 'Uploading...';
-        }
-
-        fetch(API_BASE + endpoint, {
-            method: 'POST',
-            headers: requireAuth ? getAuthHeaders() : {},
-            body: fd
-        })
-            .then(res => {
-                return parseJsonSafe(res).then(data => {
-                    if (!res.ok) {
-                        if (res.status === 401) {
-                            clearAuthState();
-                            redirectToLogin();
-                            throw new Error('Session expired. Please log in again.');
-                        }
-                        throw new Error(getErrorMessage(data, 'Upload failed'));
-                    }
-                    return data;
-                });
-            })
-            .then(data => {
-                if (!isSuccess(data)) throw new Error(data.message || 'Upload failed');
-                uploadResult.innerText = 'Upload completed.';
-                fileInput.value = '';
-                if (fileDesc) fileDesc.value = '';
-                if (requireAuth) {
-                    return loadSecureFiles();
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', API_BASE + '/files/upload');
+            xhr.setRequestHeader('Authorization', 'Bearer ' + token);
+            xhr.upload.onprogress = (evt) => {
+                if (evt.lengthComputable) {
+                    const percent = Math.round((evt.loaded / evt.total) * 100);
+                    setItemProgress(ui, percent, `Uploading... ${percent}%`);
                 }
+            };
+            xhr.onload = () => {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    setItemProgress(ui, 100, 'Uploaded');
+                    resolve();
+                } else {
+                    reject(new Error('Upload failed'));
+                }
+            };
+            xhr.onerror = () => reject(new Error('Upload failed'));
+
+            const fd = new FormData();
+            fd.append('file', file);
+            fd.append('description', description || '');
+            xhr.send(fd);
+        });
+    };
+
+    const initResumable = (file, description) => {
+        return fetch(API_BASE + '/files/resumable/init', {
+            method: 'POST',
+            headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify({
+                filename: file.name,
+                total_size: file.size,
+                chunk_size: CHUNK_SIZE,
+                description: description || ''
+            })
+        }).then(res => parseJsonSafe(res).then(data => ({ res, data })))
+          .then(({ res, data }) => {
+              if (!res.ok || !isSuccess(data)) {
+                  throw new Error(getErrorMessage(data, 'Init failed'));
+              }
+              return data.data || data;
+          });
+    };
+
+    const getResumableStatus = (uploadId) => {
+        return fetch(API_BASE + '/files/resumable/' + uploadId, {
+            method: 'GET',
+            headers: getAuthHeaders()
+        }).then(res => parseJsonSafe(res).then(data => ({ res, data })))
+          .then(({ res, data }) => {
+              if (!res.ok || !isSuccess(data)) {
+                  throw new Error(getErrorMessage(data, 'Status failed'));
+              }
+              return data.data || data;
+          });
+    };
+
+    const uploadChunk = (uploadId, index, blob, ui, uploadedBytes, totalBytes) => {
+        return new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', API_BASE + '/files/resumable/' + uploadId + '/chunk');
+            const headers = getAuthHeaders();
+            Object.keys(headers).forEach(k => xhr.setRequestHeader(k, headers[k]));
+            xhr.upload.onprogress = (evt) => {
+                if (evt.lengthComputable) {
+                    const current = uploadedBytes + evt.loaded;
+                    const percent = Math.round((current / totalBytes) * 100);
+                    setItemProgress(ui, percent, `Uploading... ${percent}%`);
+                }
+            };
+            xhr.onload = () => {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    resolve();
+                } else {
+                    reject(new Error('Chunk upload failed'));
+                }
+            };
+            xhr.onerror = () => reject(new Error('Chunk upload failed'));
+
+            const fd = new FormData();
+            fd.append('index', String(index));
+            fd.append('chunk', blob, `chunk_${index}`);
+            xhr.send(fd);
+        });
+    };
+
+    const completeResumable = (uploadId) => {
+        return fetch(API_BASE + '/files/resumable/' + uploadId + '/complete', {
+            method: 'POST',
+            headers: getAuthHeaders()
+        }).then(res => parseJsonSafe(res).then(data => ({ res, data })))
+          .then(({ res, data }) => {
+              if (!res.ok || !isSuccess(data)) {
+                  throw new Error(getErrorMessage(data, 'Complete failed'));
+              }
+              return data.data || data;
+          });
+    };
+
+    const ensurePreparedSession = (file, description, ui) => {
+        const key = makeFileKey(file);
+        const existing = preparedSessions.get(key);
+        if (existing && existing.description === description) {
+            if (existing.session) return Promise.resolve(existing.session);
+            if (existing.promise) return existing.promise;
+        }
+
+        const prep = {
+            description,
+            session: null,
+            promise: null
+        };
+        prep.promise = initResumable(file, description)
+            .then(session => {
+                prep.session = session;
+                prep.promise = null;
+                return session;
             })
             .catch(err => {
-                uploadResult.innerText = 'Upload failed: ' + (err.message || err);
+                preparedSessions.delete(key);
+                throw err;
+            });
+        preparedSessions.set(key, prep);
+        if (ui) setItemProgress(ui, 3, 'Preparing...');
+        return prep.promise
+            .then(session => {
+                if (ui) setItemPrepared(ui);
+                return session;
             })
-            .finally(() => {
-                if (buttonEl) {
-                    buttonEl.disabled = false;
-                    buttonEl.innerText = buttonEl.dataset.label || 'Upload';
-                }
+            .catch(() => {
+                if (ui) setItemPrepared(ui);
+                return null;
             });
     };
+
+    const uploadSingleResumable = async (file, description, ui) => {
+        const prepared = await ensurePreparedSession(file, description, ui);
+        const session = prepared || await initResumable(file, description);
+        const status = await getResumableStatus(session.upload_id);
+        const uploadedSet = new Set(status.uploaded || []);
+        let uploadedBytes = 0;
+
+        for (let i = 0; i < status.total_chunks; i++) {
+            const start = i * status.chunk_size;
+            const end = Math.min(start + status.chunk_size, file.size);
+            const chunkSize = end - start;
+            if (uploadedSet.has(i)) {
+                uploadedBytes += chunkSize;
+                continue;
+            }
+            const blob = file.slice(start, end);
+            await uploadChunk(status.upload_id, i, blob, ui, uploadedBytes, file.size);
+            uploadedBytes += chunkSize;
+        }
+        setItemProgress(ui, 100, 'Finalizing...');
+        await completeResumable(status.upload_id);
+        setItemProgress(ui, 100, 'Uploaded');
+    };
+
+    const uploadSingle = async (file, description, ui) => {
+        if (file.size >= RESUMABLE_THRESHOLD) {
+            await uploadSingleResumable(file, description, ui);
+        } else {
+            await uploadSingleNormal(file, description, ui);
+        }
+    };
+
+    const rebuildQueue = () => {
+        queueItems = [];
+        preparedSessions.clear();
+        if (uploadQueue) uploadQueue.innerHTML = '';
+        const files = fileInput.files ? Array.from(fileInput.files) : [];
+        files.forEach(file => {
+            const ui = createUploadItem(file);
+            setItemPrepared(ui);
+            queueItems.push({ file, ui });
+        });
+        setGlobalPreparing(files.length);
+        const description = fileDesc ? fileDesc.value.trim() : '';
+        files.forEach((file, idx) => {
+            if (file.size >= RESUMABLE_THRESHOLD) {
+                const ui = queueItems[idx] ? queueItems[idx].ui : null;
+                ensurePreparedSession(file, description, ui).catch(() => {});
+            }
+        });
+    };
+
+    if (fileInput) {
+        fileInput.addEventListener('change', rebuildQueue);
+    }
 
     const runUpdate = (fileId, buttonEl) => {
         uploadResult.innerText = '';
@@ -601,14 +811,58 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     uploadBtn.dataset.label = 'Upload Securely';
-    uploadBtn.addEventListener('click', () => {
-        runUpload('/files/upload', true, uploadBtn);
+    uploadBtn.addEventListener('click', async () => {
+        uploadResult.innerText = '';
+        const files = fileInput.files ? Array.from(fileInput.files) : [];
+        if (files.length === 0) {
+            uploadResult.innerText = 'Please choose files first.';
+            return;
+        }
+        const token = getAuthToken();
+        if (!token) {
+            uploadResult.innerText = 'Session expired. Please log in again.';
+            redirectToLogin();
+            return;
+        }
+
+        if (uploadBtn) {
+            uploadBtn.disabled = true;
+            uploadBtn.innerText = 'Uploading...';
+        }
+
+        let completed = 0;
+        setGlobalProgress(completed, files.length);
+        const description = fileDesc ? fileDesc.value.trim() : '';
+
+        try {
+            if (queueItems.length !== files.length) {
+                rebuildQueue();
+            }
+            for (const entry of queueItems) {
+                const ui = entry.ui || createUploadItem(entry.file);
+                setItemProgress(ui, 0, 'Uploading...');
+                await uploadSingle(entry.file, description, ui);
+                completed += 1;
+                setGlobalProgress(completed, files.length);
+            }
+            uploadResult.innerText = 'All uploads completed.';
+            fileInput.value = '';
+            if (fileDesc) fileDesc.value = '';
+            await loadSecureFiles();
+        } catch (err) {
+            uploadResult.innerText = 'Upload failed: ' + (err.message || err);
+        } finally {
+            if (uploadBtn) {
+                uploadBtn.disabled = false;
+                uploadBtn.innerText = uploadBtn.dataset.label || 'Upload';
+            }
+        }
     });
 
     if (uploadPublicBtn) {
         uploadPublicBtn.dataset.label = 'Upload Publicly';
         uploadPublicBtn.addEventListener('click', () => {
-            runUpload('/files/public/upload', false, uploadPublicBtn);
+            uploadResult.innerText = 'Public upload is not enabled in this view.';
         });
     }
 
@@ -618,12 +872,75 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    filesBody.addEventListener('click', (event) => {
+    filesGrid.addEventListener('click', (event) => {
         const target = event.target;
         if (!(target instanceof HTMLElement)) return;
         const action = target.dataset.action;
         const fileId = target.dataset.id;
         if (!action || !fileId) return;
+
+        if (action === 'preview') {
+            const card = target.closest('.file-card');
+            if (!card) return;
+            const previewEl = card.querySelector('.preview');
+            if (!previewEl) return;
+            const ext = (card.dataset.ext || '').toLowerCase();
+            const officeExts = new Set(['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx']);
+            const imageExts = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'tif', 'tiff', 'svg', 'heic', 'heif', 'avif']);
+            const textExts = new Set(['txt', 'md', 'json', 'log', 'csv']);
+            const previewUrl = API_BASE + '/files/preview/' + fileId;
+
+            if (officeExts.has(ext) || imageExts.has(ext) || ext === 'pdf') {
+                previewEl.innerHTML = '<div class="text-muted" style="padding:0.6rem;">Opening preview in a new tab...</div>';
+                const win = window.open(previewUrl, '_blank', 'noopener');
+                if (!win) {
+                    previewEl.innerHTML = `<div class="text-muted" style="padding:0.6rem;">Popup blocked. <a href="${previewUrl}" target="_blank" rel="noopener">Open preview</a></div>`;
+                }
+                return;
+            }
+
+            previewEl.innerHTML = '<div class="text-muted" style="padding:0.6rem;">Loading preview...</div>';
+            fetch(previewUrl, {
+                method: 'GET',
+                headers: getAuthHeaders()
+            })
+                .then(res => {
+                    if (!res.ok) throw new Error('Preview failed');
+                    const contentType = (res.headers.get('Content-Type') || '').toLowerCase();
+                    if (contentType.startsWith('image/') || imageExts.has(ext)) {
+                        return res.blob().then(blob => ({ type: 'image', blob }));
+                    }
+                    if (contentType === 'application/pdf' || ext === 'pdf') {
+                        return res.blob().then(blob => ({ type: 'pdf', blob }));
+                    }
+                    if (contentType.startsWith('text/') || textExts.has(ext) || contentType.includes('json')) {
+                        return res.text().then(text => ({ type: 'text', text }));
+                    }
+                    return res.blob().then(blob => ({ type: 'binary', blob }));
+                })
+                .then(payload => {
+                    if (payload.type === 'image') {
+                        const url = URL.createObjectURL(payload.blob);
+                        previewEl.innerHTML = `<img src="${url}" alt="preview">`;
+                        return;
+                    }
+                    if (payload.type === 'pdf') {
+                        const url = URL.createObjectURL(payload.blob);
+                        previewEl.innerHTML = `<iframe class="text-preview" style="width:100%;height:240px;border:0;" src="${url}"></iframe>`;
+                        return;
+                    }
+                    if (payload.type === 'text') {
+                        const safe = escapeHTML(payload.text || '').slice(0, 20000);
+                        previewEl.innerHTML = `<div class="text-preview">${safe}</div>`;
+                        return;
+                    }
+                    previewEl.innerHTML = `<div class="text-muted" style="padding:0.6rem;">Preview not supported. <a href="${previewUrl}" target="_blank" rel="noopener">Open</a></div>`;
+                })
+                .catch(err => {
+                    previewEl.innerHTML = `<div class="text-muted" style="padding:0.6rem;">${escapeHTML(err.message || err)}</div>`;
+                });
+            return;
+        }
 
         if (action === 'download') {
             const filename = target.dataset.name || 'download';
@@ -663,6 +980,38 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
         }
     });
+
+    if (deleteSelectedBtn) {
+        deleteSelectedBtn.addEventListener('click', () => {
+            const checked = filesGrid.querySelectorAll('.select-checkbox:checked');
+            const ids = Array.from(checked).map(el => Number(el.dataset.id)).filter(Boolean);
+            if (ids.length === 0) {
+                uploadResult.innerText = 'Select files to delete.';
+                return;
+            }
+            if (!confirm(`Delete ${ids.length} selected files?`)) return;
+            deleteSelectedBtn.disabled = true;
+            fetch(API_BASE + '/files/batch', {
+                method: 'DELETE',
+                headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+                body: JSON.stringify({ ids })
+            })
+                .then(res => parseJsonSafe(res).then(data => ({ res, data })))
+                .then(({ res, data }) => {
+                    if (!res.ok || !isSuccess(data)) {
+                        throw new Error(getErrorMessage(data, 'Batch delete failed'));
+                    }
+                    uploadResult.innerText = 'Batch delete completed.';
+                    return loadSecureFiles();
+                })
+                .catch(err => {
+                    uploadResult.innerText = 'Batch delete failed: ' + (err.message || err);
+                })
+                .finally(() => {
+                    deleteSelectedBtn.disabled = false;
+                });
+        });
+    }
 });
 
 function register() {
@@ -841,10 +1190,23 @@ document.addEventListener('DOMContentLoaded', function () {
         clearLoginForm();
     }
     
-    // 额外的：如果用户已经登录，直接跳转到首页
-    const logout_token = localStorage.getItem('authToken');
-    if (logout_token && window.location.pathname === '/login') {
-        window.location.href = '/index';
+    // 额外的：如果本地存在 token，先验证再跳转，避免无效 token 造成循环跳转
+    const localToken = localStorage.getItem('authToken');
+    if (localToken && window.location.pathname === '/login') {
+        fetch(API_BASE + "/user/profile", {
+            method: "GET",
+            headers: getAuthHeaders({ "Accept": "application/json" })
+        })
+            .then(res => {
+                if (res.ok) {
+                    window.location.href = '/index';
+                    return;
+                }
+                clearAuthState();
+            })
+            .catch(() => {
+                clearAuthState();
+            });
     }
 
     console.log('DOM loaded, initializing login form');
