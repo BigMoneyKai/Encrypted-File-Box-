@@ -183,8 +183,13 @@ Open:
 
 ## 6. Build (Prod)
 
+- Build
 ```bash
 go build -o bin/efb_backend cmd/server/main.go
+```
+
+- Run
+```bash
 bin/efb_backend
 ```
 
