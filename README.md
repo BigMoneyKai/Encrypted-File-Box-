@@ -138,16 +138,22 @@ For Windows users, make sure you use ***Administrator mode*** Powershell, and in
 net start MySQL80   
 ```
 
-3. Then, enter mysql command line without password, set up the database table and password step by step
+3. Then, enter mysql command line without password
+```bash
+mysql -u root -p
+```
+
+4.set up the database table and password step by step
 ```sql
 CREATE DATABASE secure_file_box;
 ```
 
-4. Set MySQL root password to match your `config.yaml` (example):
+5. Set MySQL root password to match your `config.yaml` (example):
 ```sql
 ALTER USER 'root'@'localhost' IDENTIFIED BY 'yourpassword';
 ```
 
+6. Exit and enter it again using the root user, make sure everything work in shape
 
 ---
 
