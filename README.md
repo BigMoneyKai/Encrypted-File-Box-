@@ -3,7 +3,7 @@
 
 A Go + Gin web app for user auth and encrypted file storage with a static HTML/CSS/JS frontend.
 <p align="center">
-  <img src="images/logo.png" alt="Logo" width="650">
+  <img src="images/logo.png" alt="Logo" width="300">
 </p>
 **Key Features**
 - User registration/login with JWT (+ profile, avatar, password change)
