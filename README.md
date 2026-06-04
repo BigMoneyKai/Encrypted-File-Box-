@@ -106,7 +106,8 @@ PY
 ## 4. Database Setup
 
 Create the database (schema name must match `config.yaml`):
-* First, you need to install mysql and mysql and mysql-client(Or MySQL WorkBench for optional GUI choice)
+
+1.First, you need to install mysql and mysql and mysql-client(Or MySQL WorkBench for optional GUI choice)
 For MacOS and Unix/Linux users, use the packahe manager on your platform to install mysql and mysql-client.
 By the way, the names of mysql and mysql-client might be different in different systems, please go check on the website.
 ```bash
@@ -115,33 +116,33 @@ sudo [brew|apt|dnf|...] install mysql mysql-client
 For Windows users, MySQL WorkBench GUI is more recommanded,
 go to this website [mysql gui](https://dev.mysql.com/downloads/)
 
-* Next step, make sure MySQL service is started in your system,
+2.Next step, make sure MySQL service is started in your system,
 For MacOS and Unix/Linux users, make sure it's started by inputting command below
 
-1.Debian/Ubuntu systems
+- Debian/Ubuntu systems
 ```bash
 sudo systemctl start mysql
 ```
-2.RHEL/CentOS/Fedora systems
+- RHEL/CentOS/Fedora systems
 ```bash
 sudo systemctl start mysqld
 ```
-3.MacOS/OSX
+- MacOS/OSX
 ```bash
 brew service start mysql
 ```
-4.Windows
+- Windows
 For Windows users, make sure you use ##admin## mode Powershell, and input
 ```bash
 net start MySQL80   
 ```
 
-* Then, enter mysql command line without password, set up the database table and password step by step
+3.Then, enter mysql command line without password, set up the database table and password step by step
 ```sql
 CREATE DATABASE secure_file_box;
 ```
 
-* Set MySQL root password to match your `config.yaml` (example):
+4.Set MySQL root password to match your `config.yaml` (example):
 ```sql
 ALTER USER 'root'@'localhost' IDENTIFIED BY 'yourpassword';
 ```
