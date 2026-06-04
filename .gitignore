@@ -1,3 +1,6 @@
 .gocache/
 .gomodcache/
 .gopath/
+
+bin/
+.DS_Store
