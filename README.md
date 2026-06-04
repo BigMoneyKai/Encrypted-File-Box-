@@ -2,8 +2,11 @@
 [**简体中文**](README_zh_CN.md)
 
 A Go + Gin web app for user auth and encrypted file storage with a static HTML/CSS/JS frontend.
-![Structure Graph](images/structure.png)
-**Key features**
+<p align="center">
+  <img src="images/structure.png" alt="Structure Graph" width="1000">
+</p>
+
+**Key Features**
 - User registration/login with JWT (+ profile, avatar, password change)
 - Encrypted file upload/download (AES-256-GCM, chunked)
 - Batch upload + resumable uploads

@@ -4,6 +4,10 @@
 
 一个基于 Go + Gin 的 Web 应用，用于用户身份验证和加密文件存储，前端采用静态 HTML/CSS/JS。
 
+<p align="center">
+  <img src="images/structure.png" alt="Structure Graph" width="1000">
+</p>
+
 **主要功能**
 - 使用 JWT 进行用户注册/登录（含资料、头像、改密）
 - 加密文件上传/下载（AES-256-GCM，分块）
