@@ -3,7 +3,7 @@
 
 A Go + Gin web app for user auth and encrypted file storage with a static HTML/CSS/JS frontend.
 <p align="center">
-  <img src="images/structure.png" alt="Structure Graph" width="300">
+  <img src="images/structure.png" alt="Structure Graph" width="1200">
 </p>
 
 **Key Features**
