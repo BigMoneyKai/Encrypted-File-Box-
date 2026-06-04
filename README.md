@@ -109,7 +109,7 @@ Create the database (schema name must match `config.yaml`):
 
 1. First, you need to install mysql and mysql and mysql-client(Or MySQL WorkBench for optional GUI choice)
 For MacOS and Unix/Linux users, use the packahe manager on your platform to install mysql and mysql-client.
-By the way, the names of mysql and mysql-client might be different in different systems, please go check on the website.
+***By the way, the names of mysql and mysql-client might be different in different systems, please go check on the website.***
 
 - Debian/Ubuntu systems
 ```bash
@@ -184,7 +184,7 @@ Open:
 ## 6. Build (Prod)
 
 ```bash
-go build -o bin/efb_backend cmd/server
+go build -o bin/efb_backend cmd/server/main.go
 bin/efb_backend
 ```
 
