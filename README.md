@@ -113,23 +113,23 @@ By the way, the names of mysql and mysql-client might be different in different 
 sudo [brew|apt|dnf|...] install mysql mysql-client
 ```
 For Windows users, MySQL WorkBench GUI is more recommanded,
-go to this website ![MySQL WorkBench](https://dev.mysql.com/downloads/)
+go to this website [mysql gui](https://dev.mysql.com/downloads/)
 
 * Next step, make sure MySQL service is started in your system,
 For MacOS and Unix/Linux users, make sure it's started by inputting command below,
-- Debian/Ubuntu systems
+1.Debian/Ubuntu systems
 ```bash
 sudo systemctl start mysql
 ```
-- RHEL/CentOS/Fedora systems
+2.RHEL/CentOS/Fedora systems
 ```bash
 sudo systemctl start mysqld
 ```
-- MacOS/OSX
+3.MacOS/OSX
 ```bash
 brew service start mysql
 ```
-- Windows
+4.Windows
 For Windows users, make sure you use ##admin## mode Powershell, and input
 ```bash
 net start MySQL80   
