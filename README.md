@@ -5,6 +5,7 @@ A Go + Gin web app for user auth and encrypted file storage with a static HTML/C
 <p align="center">
   <img src="images/logo.png" alt="Logo" width="300">
 </p>
+
 **Key Features**
 - User registration/login with JWT (+ profile, avatar, password change)
 - Encrypted file upload/download (AES-256-GCM, chunked)
