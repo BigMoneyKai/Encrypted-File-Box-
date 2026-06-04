@@ -110,11 +110,21 @@ Create the database (schema name must match `config.yaml`):
 1. First, you need to install mysql and mysql and mysql-client(Or MySQL WorkBench for optional GUI choice)
 For MacOS and Unix/Linux users, use the packahe manager on your platform to install mysql and mysql-client.
 By the way, the names of mysql and mysql-client might be different in different systems, please go check on the website.
+
+- Debian/Ubuntu systems
 ```bash
-sudo [brew|apt|dnf|...] install mysql mysql-client
+sudo apt install mysql mysql-client
 ```
-For Windows users, MySQL WorkBench GUI is more recommanded,
-go to this website [mysql gui](https://dev.mysql.com/downloads/)
+- RHEL/CentOS/Fedora systems
+```bash
+sudo [dnf|yum|rpm|...] install mysql mysql-client
+```
+- MacOS/OSX
+```bash
+brew install mysql mysql-client
+```
+- For Windows users, MySQL WorkBench GUI is more recommanded,
+go to this website [Download MySQL WorkBench](https://dev.mysql.com/downloads/)
 
 2. Next step, make sure MySQL service is started in your system,
 For MacOS and Unix/Linux users, make sure it's started by inputting command below
@@ -143,7 +153,7 @@ net start MySQL80
 mysql -u root -p
 ```
 
-4.set up the database table and password step by step
+4. set up the database table and password step by step
 ```sql
 CREATE DATABASE secure_file_box;
 ```
@@ -162,7 +172,7 @@ ALTER USER 'root'@'localhost' IDENTIFIED BY 'yourpassword';
 From repo root:
 
 ```bash
-go run ./cmd/server/main.go
+go run cmd/server/main.go
 ```
 
 Open:
@@ -174,8 +184,8 @@ Open:
 ## 6. Build (Prod)
 
 ```bash
-go build -o ./bin/app ./cmd/server
-./bin/app
+go build -o bin/efb_backend cmd/server
+bin/efb_backend
 ```
 
 ---
