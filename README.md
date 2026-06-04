@@ -105,7 +105,7 @@ PY
 
 ## 4. Database Setup
 
-Create the database (schema name must match `config.yaml`):,
+Create the database (schema name must match `config.yaml`):
 * First, you need to install mysql and mysql and mysql-client(Or MySQL WorkBench for optional GUI choice)
 For MacOS and Unix/Linux users, use the packahe manager on your platform to install mysql and mysql-client.
 By the way, the names of mysql and mysql-client might be different in different systems, please go check on the website.
@@ -116,7 +116,8 @@ For Windows users, MySQL WorkBench GUI is more recommanded,
 go to this website [mysql gui](https://dev.mysql.com/downloads/)
 
 * Next step, make sure MySQL service is started in your system,
-For MacOS and Unix/Linux users, make sure it's started by inputting command below,
+For MacOS and Unix/Linux users, make sure it's started by inputting command below
+
 1.Debian/Ubuntu systems
 ```bash
 sudo systemctl start mysql
@@ -135,7 +136,7 @@ For Windows users, make sure you use ##admin## mode Powershell, and input
 net start MySQL80   
 ```
 
-* Then, Set up the database table and password step by step
+* Then, enter mysql command line without password, set up the database table and password step by step
 ```sql
 CREATE DATABASE secure_file_box;
 ```
