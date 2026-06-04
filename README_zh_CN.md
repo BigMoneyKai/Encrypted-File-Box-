@@ -5,7 +5,7 @@
 一个基于 Go + Gin 的 Web 应用，用于用户身份验证和加密文件存储，前端采用静态 HTML/CSS/JS。
 
 <p align="center">
-  <img src="images/structure.png" alt="Structure Graph" width="1000">
+  <img src="images/logo.png" alt="Logo" width="1000">
 </p>
 
 **主要功能**
@@ -19,6 +19,9 @@
 ---
 
 ## 1. 项目布局
+<p align="center">
+  <img src="images/structure.png" alt="Structure Graph" width="1000">
+</p>
 
 - `cmd/server/main.go`：应用入口
 - `internal/config/`：配置加载与验证

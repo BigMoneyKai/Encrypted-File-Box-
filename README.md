@@ -3,9 +3,8 @@
 
 A Go + Gin web app for user auth and encrypted file storage with a static HTML/CSS/JS frontend.
 <p align="center">
-  <img src="images/structure.png" alt="Structure Graph" width="1200">
+  <img src="images/logo.png" alt="Logo" width="1200">
 </p>
-
 **Key Features**
 - User registration/login with JWT (+ profile, avatar, password change)
 - Encrypted file upload/download (AES-256-GCM, chunked)
@@ -17,6 +16,9 @@ A Go + Gin web app for user auth and encrypted file storage with a static HTML/C
 ---
 
 ## 1. Project Layout
+<p align="center">
+  <img src="images/structure.png" alt="Structure Graph" width="1200">
+</p>
 
 - `cmd/server/main.go`: app entrypoint
 - `internal/config/`: config loading and validation
